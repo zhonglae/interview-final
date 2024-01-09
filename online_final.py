@@ -25,7 +25,7 @@ default_list3 = []
 # "BTC-USD | Bitcoin"
 NUM_TRADING_DAYS = 252
 START_CAPITAL = 1000
-DEFAULT_START_DATE = dt.date(2015, 1, 1)
+DEFAULT_START_DATE = dt.date(2020, 1, 1)
 compared_stock = "SPY"
 sel = []
 STOCK_LIST = []
@@ -90,8 +90,8 @@ def set_new_date_for_available_data():
         # set the new starting date such that there are no NaN values in dataframe
         START_DATE = latest_listed_stock_date[0].date()
 
-        st.warning(f"Yahoo Finance data not available for ticker \"{latest_listed_stock_date.index[0]}\" "
-                   f"before {START_DATE},"f" new start date is set to {START_DATE}")
+        # st.warning(f"Yahoo Finance data not available for ticker \"{latest_listed_stock_date.index[0]}\" "
+        #            f"before {START_DATE},"f" new start date is set to {START_DATE}")
 
         return latest_listed_stock_date.index[0]
 
@@ -111,6 +111,12 @@ def get_normalised_daily_return(dataset_):
 
     # fill nan for distribution graph
     log_daily_return_filled = log_daily_return_.fillna(0)
+
+    # def limit_entries(entry):
+    #     return 0 if entry < -0.2 or entry > 0.2 else entry
+    #
+    # log_daily_return_filled = log_daily_return_filled.applymap(limit_entries)
+
     fig = ff.create_distplot([log_daily_return_filled[c] for c in log_daily_return_filled.columns],
                              log_daily_return_filled.columns)
     fig.update_layout(
@@ -343,7 +349,7 @@ def scatter_plot_optimal_portfolios(p_mean, p_sd):
     # x-axis = portfolio SD and y-axis = portfolio mean
     plt.figure(figsize=(10, 6), dpi=300)
     plt.scatter(p_sd, p_mean, c=p_mean/p_sd, cmap='Spectral', marker='o', edgecolors='k')
-    plt.style.use('seaborn')
+    # plt.style.use('seaborn')
     plt.grid(True)
     plt.xlabel("Expected Volatility (SD)")
     plt.ylabel("Expected Return (Mean)")
@@ -514,8 +520,8 @@ def plot_pie_charts(optimal_ratio_max_sharpe_, stock_list_, optimal_ratio_min_ri
     # extract the sorted arrays from tuples
     tuples = zip(*sorted_pairs_between)
     optimal_ratio_min_risk_, stock_list_sorted2 = [list(t) for t in tuples]
-    print(optimal_ratio_min_risk_)
-    print(stock_list_)
+    # print(optimal_ratio_min_risk_)
+    # print(stock_list_)
 
     # Find the colour array that corresponds to sorted_stick_list1
     col_corr_array = col[0:len(STOCK_LIST)]
@@ -558,7 +564,7 @@ def plot_pie_charts(optimal_ratio_max_sharpe_, stock_list_, optimal_ratio_min_ri
     col11.metric("Annual Volatility\n(Std Dev)", f"{round(min_risk_stats.reshape(-1)[1] * 100, 2)} %")
     col12.metric("Sharpe Ratio", round(min_risk_stats.reshape(-1)[2], 2))
 
-    if NUM_PORTFOLIOS <= 100000:
+    if NUM_PORTFOLIOS <= 50000:
         st.warning("Number of random portfolios may not enough to estimate optimal asset ratios accurately. For more "
                    "exact ratios, increase the slider and re-submit the form again.")
     st.write("***")
@@ -573,7 +579,8 @@ def plot_equity_curve(start_date, end_date, stock_list, w_max_sharpe, w_min_risk
         stock_data = {}
         for stock in stock_lst:
             stock_data[stock] = yf.Ticker(stock).history(stock, start=start_date, end=end_date)['Close']
-        return pd.DataFrame(stock_data).reindex(pd.date_range(start_date, end_date), fill_value=None).fillna(method="ffill")
+        # return pd.DataFrame(stock_data).reindex(pd.date_range(start_date, end_date), fill_value=None).ffill()
+        return pd.DataFrame(stock_data)
 
     def weighted_capital(w):
         return list(map(lambda x:x*START_CAPITAL,w))
@@ -595,8 +602,8 @@ def plot_equity_curve(start_date, end_date, stock_list, w_max_sharpe, w_min_risk
 
     portfolio_df = get_dataset(stock_list)
     snp_df = get_dataset(['SPY'])
-    # print(portfolio_df)
-    # print(snp_df)
+    print(portfolio_df)
+    print(snp_df)
 
     weighted_start_capital_max_sharpe = weighted_capital(w_max_sharpe)
     weighted_start_capital_min_risk = weighted_capital(w_min_risk)
@@ -728,7 +735,7 @@ if __name__ == '__main__':
 
     dataset_correct_date = get_dataset()
 
-    dataset_final = dataset_correct_date.backfill()
+    dataset_final = dataset_correct_date.bfill()############### backfill depreciated
     # print(dataset_final)
 
     plot_dataset(dataset_final)
