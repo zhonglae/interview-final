@@ -16,10 +16,14 @@ df_excel_crypto = pd.read_csv('TOP 100 CRYPTO TICKERS csv.csv')
 df_concat = pd.concat((df_excel_stock, df_excel_etf, df_excel_crypto), ignore_index=True)
 df_concat.drop(columns=df_concat.iloc[:, 2:], inplace=True, axis=1)
 # st.write(df_concat)
-default_list1 = ["AAPL | Apple Inc. Common Stock", "DB | Deutsche Bank AG Common Stock",
-                 "WMT | Walmart Inc. Common Stock", "TSLA | Tesla Inc. Common Stock"]
+# default_list1 = ["AAPL | Apple Inc. Common Stock", "DB | Deutsche Bank AG Common Stock",
+#                  "WMT | Walmart Inc. Common Stock", "TSLA | Tesla Inc. Common Stock"]
+#
+# default_list2 = ["GLD | SPDR Gold Trust", "SPY | SPDR S&P 500"]
 
-default_list2 = ["GLD | SPDR Gold Trust", "SPY | SPDR S&P 500"]
+default_list1 = ["AAPL | Apple Inc. Common Stock"]
+
+default_list2 = ["GLD | SPDR Gold Trust"]
 
 default_list3 = []
 # "BTC-USD | Bitcoin"
