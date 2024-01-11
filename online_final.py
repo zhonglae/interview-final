@@ -15,6 +15,8 @@ df_excel_etf = pd.read_csv('US ETF TICKERS.csv')
 df_excel_crypto = pd.read_csv('TOP 100 CRYPTO TICKERS csv.csv')
 df_concat = pd.concat((df_excel_stock, df_excel_etf, df_excel_crypto), ignore_index=True)
 df_concat.drop(columns=df_concat.iloc[:, 2:], inplace=True, axis=1)
+
+IS_DISPLAY_STATS = False
 # st.write(df_concat)
 # default_list1 = ["AAPL | Apple Inc. Common Stock", "DB | Deutsche Bank AG Common Stock",
 #                  "WMT | Walmart Inc. Common Stock", "TSLA | Tesla Inc. Common Stock"]
@@ -29,7 +31,7 @@ default_list3 = []
 # "BTC-USD | Bitcoin"
 NUM_TRADING_DAYS = 252
 START_CAPITAL = 1000
-DEFAULT_START_DATE = dt.date(2020, 1, 1)
+DEFAULT_START_DATE = dt.date(2021, 1, 1)
 compared_stock = "SPY"
 sel = []
 STOCK_LIST = []
@@ -37,8 +39,6 @@ STOCK_LIST = []
 col_header, col_name = st.columns((9, 1))
 col_header.write("# Modern Portfolio Theory")
 col_header.write("## :chart_with_upwards_trend: Portfolio optimisation using Monte Carlo Simulation ")
-# col_name.caption("### ")
-# col_name.write("###### By [John](https://www.linkedin.com/in/john-lee-b68a42145/)")
 col_header.caption("")
 col_header.write("###### By [John](https://www.linkedin.com/in/john-lee-b68a42145/)")
 st.write("# ")
@@ -60,17 +60,28 @@ with st.container():
         image = Image.open('SAMPLE MCS.png')
         st.image(image, caption='Example of Monte Carlo Simulation')
 
-st.warning("###### Disclaimer: All information displayed are for data visualisation purposes only."
-           " Nothing contained in this web application should be taken as financial or investment advice!")
 
-def get_dataset():
+
+def get_dataset(stock_list):
     # get data from yahoo finance and store it in a pandas dataframe
     stock_data = {}
 
-    for stock in STOCK_LIST:
-        stock_data[stock] = yf.Ticker(stock).history(stock, start=START_DATE, end=END_DATE)['Close']
-
-    return pd.DataFrame(stock_data)
+    valid_stocks = []
+    invalid = []
+    for stock in stock_list:
+        # check if stock is  unlisted / invalid
+        dat = yf.Ticker(stock)
+        tz = dat._fetch_ticker_tz(proxy=None, timeout=30)
+        valid = yf.utils.is_valid_timezone(tz)
+        print(f"{stock}: tz='{tz}', valid={valid}")
+        if valid:
+            valid_stocks.append(stock)
+            stock_data[stock] = yf.Ticker(stock).history(stock, start=START_DATE, end=END_DATE)['Close']
+        else:
+            invalid.append(stock)
+    if invalid != []:
+        st.warning(f"No data for ticker(s) {invalid}")
+    return pd.DataFrame(stock_data), valid_stocks
 
 
 def set_new_date_for_available_data():
@@ -120,38 +131,38 @@ def get_normalised_daily_return(dataset_):
     #     return 0 if entry < -0.2 or entry > 0.2 else entry
     #
     # log_daily_return_filled = log_daily_return_filled.applymap(limit_entries)
+    if IS_DISPLAY_STATS:
+        fig = ff.create_distplot([log_daily_return_filled[c] for c in log_daily_return_filled.columns],
+                                 log_daily_return_filled.columns)
+        fig.update_layout(
+            autosize=False,
+            width=800,
+            height=295, )
+        fig['layout'].update(margin=dict(l=0, r=0, b=0, t=0))
 
-    fig = ff.create_distplot([log_daily_return_filled[c] for c in log_daily_return_filled.columns],
-                             log_daily_return_filled.columns)
-    fig.update_layout(
-        autosize=False,
-        width=800,
-        height=295, )
-    fig['layout'].update(margin=dict(l=0, r=0, b=0, t=0))
+        col_dist, col_text = st.columns(2)
 
-    col_dist, col_text = st.columns(2)
+        col_dist.subheader("Distribution graph of logged daily return ")
+        col_dist.caption("**Drag to zoom in!**")
+        col_dist.plotly_chart(fig, use_container_width=True)
 
-    col_dist.subheader("Distribution graph of logged daily return ")
-    col_dist.caption("**Drag to zoom in!**")
-    col_dist.plotly_chart(fig, use_container_width=True)
+        col_text.subheader("Graph of logged daily return against time")
+        col_text.caption("**Drag/Scroll to zoom in!**")
+        col_text.line_chart(log_daily_return_)
 
-    col_text.subheader("Graph of logged daily return against time")
-    col_text.caption("**Drag/Scroll to zoom in!**")
-    col_text.line_chart(log_daily_return_)
+        st.write("##### Note:")
+        st.write("+ In Modern Portfolio Theory, it is **assumed that asset returns are normally distributed variables**.")
+        st.write("+ However, **actual returns do not follow normal distributions** as their distributions may be skewed,"
+                 " or have heavy tails (high kurtosis) due to frequent price spikes.")
 
-    st.write("##### Note:")
-    st.write("+ In Modern Portfolio Theory, it is **assumed that asset returns are normally distributed variables**.")
-    st.write("+ However, **actual returns do not follow normal distributions** as their distributions may be skewed,"
-             " or have heavy tails (high kurtosis) due to frequent price spikes.")
+        with st.expander("Finding logarithm of returns:"):
+            st.write("+ Logged returns allows for normalization, where different asset returns can be measured"
+                     " in a comparable metric.")
+            st.latex(r"logged\:daily\:return = r_i = \ln \left( \frac{P_t}{P_{t-1}} \right)")
+            st.latex("P_t = price\:at\:time\:t")
+            st.latex("P_{t-1} = price\:at\:time\:t-1")
 
-    with st.expander("Finding logarithm of returns:"):
-        st.write("+ Logged returns allows for normalization, where different asset returns can be measured"
-                 " in a comparable metric.")
-        st.latex(r"logged\:daily\:return = r_i = \ln \left( \frac{P_t}{P_{t-1}} \right)")
-        st.latex("P_t = price\:at\:time\:t")
-        st.latex("P_{t-1} = price\:at\:time\:t-1")
-
-    st.write("***")
+        st.write("***")
 
     return log_daily_return_[1:]
 
@@ -320,8 +331,10 @@ def calculate_portfolio_max_sharpe_min_risk(p_mean, p_stddev):
     df = pd.DataFrame({'p_means': p_mean, 'p_stdDevs': p_stddev})
     df['Sharpe_ratio'] = df['p_means'] / df['p_stdDevs']
 
+    print(p_mean)
+    print(p_stddev)
     # debug print:
-    # print(df)
+    print(df)
 
     # Extracting the dataframe row containing index of portfolio with max sharpe ratio
     df_max_sharpe = df[df['Sharpe_ratio'] == df['Sharpe_ratio'].max()]
@@ -375,12 +388,12 @@ def scatter_plot_optimal_portfolios(p_mean, p_sd):
 
         st.caption("")
         st.write("###### Maximising our returns for a fixed level of risk (volatility):")
-        st.write("+ Gold star: Estimate of **optimal portfolio with highest return for a given level of risk**"
+        st.write("+ Gold star: Estimate of **portfolio with highest return for a given level of risk**"
                  " (Highest Sharpe Ratio)")
         st.caption("")
 
         st.write("###### Minimising risk given a fixed return:")
-        st.write("+ Purple star: Estimate of **optimal portfolio with minimum risk**")
+        st.write("+ Purple star: Estimate of **portfolio with minimum risk**")
         st.caption("")
 
         st.write("The **upper boundary** of the scatter plot contains \"efficient portfolios\""
@@ -388,8 +401,8 @@ def scatter_plot_optimal_portfolios(p_mean, p_sd):
                  " to take on additional risk for higher expected returns.")
 
     st.write("##### Note:")
-    st.write("+ This \"brute force\" method of solving an optimisation problem is"
-             " not ideal, but it provides a good estimate of optimal portfolio ratios. ")
+    # st.write("+ This \"brute force\" method of solving an optimisation problem is"
+    #          " not ideal, but it provides a good estimate of optimal portfolio ratios. ")
 
     with st.expander("Click for more info!"):
         st.write("##### 1. What is Sharpe Ratio?")
@@ -469,13 +482,17 @@ def plot_pie_charts(optimal_ratio_max_sharpe_, stock_list_, optimal_ratio_min_ri
     # extract the sorted arrays from tuples
     tuples = zip(*sorted_pairs_between)
     optimal_ratio_max_sharpe_, stock_list_sorted1 = [list(t) for t in tuples]
-    print(optimal_ratio_max_sharpe_)
-    print(stock_list_)
+    # print(optimal_ratio_max_sharpe_)
+    # print(stock_list_)
 
     # pie chart of the portfolio with highest return for a given level of risk
     # col = ['#b7ffdf', '#3adaa2', '#6cd7dc', '#3d85c6', '#b0afe6', '#d8c8e9', '#ffdbe4', '#fcbbbb', '#faa17a',
     #        '#ffb3ba', '#ffdfba', '#ffffba', '#baffc9', '#ffb3ba']
     col = ["#fc9eff", "#d0a3ff", "#a8abff", "#8ae6ff", "#85ffb8", "#aaff75", "#d2ff61", "#edff61", "#ffe46b", "#ff998a",
+           "#f822ff", "#8f26ff", "#2930ff", "#14ccff", "#10ff74", "#65ff06", "#b1f600", "#daf600", "#fdcf00", "#ff3314",
+           "#fc9eff", "#d0a3ff", "#a8abff", "#8ae6ff", "#85ffb8", "#aaff75", "#d2ff61", "#edff61", "#ffe46b", "#ff998a",
+           "#fc9eff", "#d0a3ff", "#a8abff", "#8ae6ff", "#85ffb8", "#aaff75", "#d2ff61", "#edff61", "#ffe46b", "#ff998a",
+           "#fc9eff", "#d0a3ff", "#a8abff", "#8ae6ff", "#85ffb8", "#aaff75", "#d2ff61", "#edff61", "#ffe46b", "#ff998a",
            "#f822ff", "#8f26ff", "#2930ff", "#14ccff", "#10ff74", "#65ff06", "#b1f600", "#daf600", "#fdcf00", "#ff3314",
            "#fc9eff", "#d0a3ff", "#a8abff", "#8ae6ff", "#85ffb8", "#aaff75", "#d2ff61", "#edff61", "#ffe46b", "#ff998a",
            "#fc9eff", "#d0a3ff", "#a8abff", "#8ae6ff", "#85ffb8", "#aaff75", "#d2ff61", "#edff61", "#ffe46b", "#ff998a"]
@@ -568,9 +585,9 @@ def plot_pie_charts(optimal_ratio_max_sharpe_, stock_list_, optimal_ratio_min_ri
     col11.metric("Annual Volatility\n(Std Dev)", f"{round(min_risk_stats.reshape(-1)[1] * 100, 2)} %")
     col12.metric("Sharpe Ratio", round(min_risk_stats.reshape(-1)[2], 2))
 
-    if NUM_PORTFOLIOS <= 50000:
-        st.warning("Number of random portfolios may not enough to estimate optimal asset ratios accurately. For more "
-                   "exact ratios, increase the slider and re-submit the form again.")
+    # if NUM_PORTFOLIOS <= 50000:
+    #     st.warning("Number of random portfolios may not enough to estimate optimal asset ratios accurately. For more "
+    #                "exact ratios, increase the slider and re-submit the form again.")
     st.write("***")
 
 
@@ -583,8 +600,35 @@ def plot_equity_curve(start_date, end_date, stock_list, w_max_sharpe, w_min_risk
         stock_data = {}
         for stock in stock_lst:
             stock_data[stock] = yf.Ticker(stock).history(stock, start=start_date, end=end_date)['Close']
-        # return pd.DataFrame(stock_data).reindex(pd.date_range(start_date, end_date), fill_value=None).ffill()
-        return pd.DataFrame(stock_data)
+        df = pd.DataFrame(stock_data)
+        df.index = df.index.strftime('%Y-%m-%d')
+        df = df.apply(lambda col: col.ffill(), axis=0)
+        df = df.apply(lambda col: col.bfill(), axis=0)
+        df = df[~df.index.duplicated(keep='first')]
+        df.index = pd.to_datetime(df.index)
+        if not isinstance(df.index, pd.DatetimeIndex):
+            raise ValueError("Input DataFrame should have a datetime index.")
+
+        df = df.reindex(pd.date_range(start_date, end_date,freq='1D'),method = 'ffill')
+
+
+        # df = pd.DataFrame(stock_data)
+        # # df = df.apply(lambda col: col.ffill(), axis=0)
+        # # df = df.apply(lambda col: col.bfill(), axis=0)
+        # df.index = df.index.strftime('%Y-%m-%d')
+        # df = df[~df.index.duplicated(keep='first')]
+        #
+        #
+        # # df.index.strftime('%m/%d/%Y')
+        # df = df.reindex(pd.date_range(start_date, end_date,freq='1D'), method='bfill')
+        # # # df = df.apply(lambda col: col.ffill(), axis=0)
+        # # # df = df.apply(lambda col: col.bfill(), axis=0)
+
+        # print(df.info())
+        # print(df.head(10))
+        print(df)
+
+        return df
 
     def weighted_capital(w):
         return list(map(lambda x:x*START_CAPITAL,w))
@@ -606,8 +650,8 @@ def plot_equity_curve(start_date, end_date, stock_list, w_max_sharpe, w_min_risk
 
     portfolio_df = get_dataset(stock_list)
     snp_df = get_dataset(['SPY'])
-    print(portfolio_df)
-    print(snp_df)
+    # print(portfolio_df)
+    # print(snp_df)
 
     weighted_start_capital_max_sharpe = weighted_capital(w_max_sharpe)
     weighted_start_capital_min_risk = weighted_capital(w_min_risk)
@@ -630,9 +674,9 @@ def plot_equity_curve(start_date, end_date, stock_list, w_max_sharpe, w_min_risk
     equity_curve_dict = {"Max Sharpe Ratio Portfolio": eqc_max_sharp_lst,
                          "Min Risk Portfolio": eqc_min_risk_lst,
                          "100% SNP500 Portfolio": eqc_snp_lst}
-
+    # print(portfolio_df.info)
+    # print(equity_curve_dict)
     df = pd.DataFrame(equity_curve_dict, index = portfolio_df.index)
-    # print(eqc_df)
 
     pd.options.plotting.backend = "plotly"
 
@@ -698,7 +742,7 @@ if __name__ == '__main__':
         append_ticker(crypto_input)
 
         st.write("###")
-        st.subheader(f"2. Select date range of historical data (Default from {DEFAULT_START_DATE} - Today's date)")
+        st.subheader(f"2. Select date range of historical data:")
         c1, c2 = st.columns(2)
 
         with c1:
@@ -708,13 +752,17 @@ if __name__ == '__main__':
 
         st.write("###")
         st.subheader("3. Select number of randomly generated portfolios:")
-        NUM_PORTFOLIOS = st.slider(" ", min_value=10000, max_value=500000, value=50000)
+        NUM_PORTFOLIOS = st.slider(" ", min_value=10000, max_value=100000, value=10000)
+        IS_DISPLAY_STATS = st.checkbox('Show additional statistics')
 
-        st.write("+ 50000 for faster results, increase slider to improve estimate of optimal asset weights")
 
         submitted = st.form_submit_button(label='Enter')
 
     if submitted:
+        if START_DATE >= END_DATE:
+            st.error("Invalid Date Selected")
+            st.stop()
+
         ticker_index = []
 
         for i in sel:
@@ -733,14 +781,21 @@ if __name__ == '__main__':
     else:
         st.stop()
 
-    dataset = get_dataset()
+    dataset, STOCK_LIST = get_dataset(STOCK_LIST)
 
     newest_ticker = set_new_date_for_available_data()
 
-    dataset_correct_date = get_dataset()
+    dataset_correct_date, STOCK_LIST = get_dataset(STOCK_LIST)
+
+
+    if len(STOCK_LIST)<2:
+        st.error("Please select at least 2 valid stocks")
+        st.stop()
 
     dataset_final = dataset_correct_date.bfill()############### backfill depreciated
-    # print(dataset_final)
+    dataset_final = dataset_correct_date.ffill()############### backfill depreciated
+
+    print(dataset_final.head(20))
 
     plot_dataset(dataset_final)
 
@@ -750,12 +805,9 @@ if __name__ == '__main__':
     # st.write(dataset)
 
     mean_return_annual, cov_matrix_annual = annualised_mean_covariance(log_daily_return)
-
-    display_mean_covariance_table()
-
-    st.spinner(text='In progress...')
-
-    correlation_heatmap(log_daily_return)
+    if IS_DISPLAY_STATS:
+        display_mean_covariance_table()
+        correlation_heatmap(log_daily_return)
 
     p_weights, p_means, p_stdDevs = generate_random_portfolios()
 
@@ -776,3 +828,6 @@ if __name__ == '__main__':
     plot_pie_charts(optimal_ratio_max_sharpe, STOCK_LIST, optimal_ratio_min_risk)
 
     plot_equity_curve(START_DATE, END_DATE, STOCK_LIST, optimal_ratio_max_sharpe, optimal_ratio_min_risk)
+    st.write("***")
+    st.warning("###### Disclaimer: All information displayed are for data visualisation purposes only."
+               " Nothing contained in this web application should be taken as financial or investment advice!")
